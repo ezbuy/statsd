@@ -8,7 +8,7 @@
 #####消息格式
 `[company.]proj.module.func.<count | value | timing>`
 
-* companye：公司名，如ezbuy或65daigou。作为公司内部使用，可省略以简化消息格式
+* companye：公司名，如ezbuy。作为公司内部使用，可省略以简化消息格式
 * proj：项目名，如dgadmin，bulma，trending等
 * module：模块名，项目中的具体模块
 * func：模块完成的功能，或者需监控的切入点，推荐以具体功能作为名称
@@ -23,33 +23,33 @@
 
 #####使用示例
 
-	import "spike/stats"
+	import "github.com/ezbuy/statsd"
 
 	func login(){
 		// user login
 
 		// becase the prefix (usually set as project name) is retrieved from config file
 		// so we just set the module & function name here
-		stats.Incr("user.login.count")
+		statsd.Incr("user.login.count")
 	}
 
 	func getGoodsPrice() {
 		// get goods price
 
-		stats.FGauge("goods.price.value", 100.5)
+		statsd.FGauge("goods.price.value", 100.5)
 		// or
-		stats.Gauge("goods.price.value", 100)
+		statsd.Gauge("goods.price.value", 100)
 	}
 
 	func placeOrder() {
-		t1 := stats.Now()
+		t1 := statsd.Now()
 
 		// heavy work
 
-		t2 := stats.Now()
-		stats.TimingByValue("order.place.timing", t2.Sub(t1))
+		t2 := statsd.Now()
+		statsd.TimingByValue("order.place.timing", t2.Sub(t1))
 		// or
-		stats.Timing("order.place.timing", t1, t2)
+		statsd.Timing("order.place.timing", t1, t2)
 	}
 
 #####后续
