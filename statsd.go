@@ -1,0 +1,172 @@
+package statsd
+
+import (
+	"fmt"
+	"log"
+	"time"
+)
+
+// Config is the struct to run statsd
+type Config struct {
+	Host       string  `json:"host"`
+	Port       int     `json:"port"`
+	Project    string  `json:"project"`
+	Enable     bool    `json:"enable"` // flag used to indicate whether stats is enabled
+	SampleRate float32 `json:"sample_rate"`
+}
+
+var config *Config
+var addr string
+
+// Setup set the config
+func Setup(cfg *Config) {
+	config = cfg
+
+	// do some extra check
+
+	if config.Project != "" {
+		if config.Project[len(config.Project)-1:] != "." {
+			config.Project = fmt.Sprintf("%s.", config.Project)
+		}
+	}
+
+	addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+}
+
+type metricType int16
+
+const (
+	metricTypeCount metricType = iota
+	metricTypeGauge
+	metricTypeFGauge
+	metricTypeTimer
+)
+
+// Incr increment a particular event
+func Incr(stat string) {
+	IncrByVal(stat, 1)
+}
+
+// IncrByVal increment a particular event with value
+func IncrByVal(stat string, val int64) {
+	IncrWithSampling(stat, val, 1)
+}
+
+// IncrWithSampling increment a particular event with value and sampling
+func IncrWithSampling(stat string, val int64, sampleRate float32) {
+	if !config.Enable {
+		return
+	}
+
+	if val == 0 {
+		return // ignore
+	}
+
+	go send(stat, val, metricTypeCount, sampleRate)
+}
+
+// Gauge set a constant value of a particular event
+func Gauge(stat string, val int64) {
+	GaugeWithSampling(stat, val, 1)
+}
+
+// GaugeWithSampling set a constant value of a particular event with sampling
+func GaugeWithSampling(stat string, val int64, sampleRate float32) {
+	if !config.Enable {
+		return
+	}
+
+	go gauge(stat, val, metricTypeGauge, sampleRate)
+}
+
+// FGauge set a constant float point value of a particular event
+func FGauge(stat string, val float64) {
+	FGaugeWithSampling(stat, val, 1)
+}
+
+// FGaugeWithSampling set a constant float point value of a particular event with sampling
+func FGaugeWithSampling(stat string, val float64, sampleRate float32) {
+	if !config.Enable {
+		return
+	}
+
+	go gauge(stat, val, metricTypeFGauge, sampleRate)
+}
+
+func gauge(stat string, val interface{}, t metricType, sampleRate float32) {
+	go send(stat, val, t, sampleRate)
+}
+
+// TimingByValue track duration of a event
+func TimingByValue(stat string, d time.Duration) {
+	TimingByValueWithSampling(stat, d, 1)
+}
+
+// TimingByValueWithSampling track duration of a event with sampling
+func TimingByValueWithSampling(stat string, d time.Duration, sampleRate float32) {
+	if !config.Enable {
+		return
+	}
+
+	// the delta must be given in milliseconds
+	t := d / time.Millisecond
+
+	go send(stat, int64(t), metricTypeTimer, sampleRate)
+}
+
+// Timing track duration of a event
+func Timing(stat string, t1 time.Time, t2 time.Time) {
+	TimingWithSampling(stat, t1, t2, 1)
+}
+
+// TimingWithSampling track duration of a event with sampling
+func TimingWithSampling(stat string, t1 time.Time, t2 time.Time, sampleRate float32) {
+	TimingByValueWithSampling(stat, t2.Sub(t1), sampleRate)
+}
+
+// Now return current system time
+func Now() time.Time {
+	return time.Now()
+}
+
+func send(stat string, val interface{}, t metricType, sampleRate float32) {
+	if stat == "" {
+		return
+	}
+
+	// error handling
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	client := newClient(addr, config.Project)
+	err := client.CreateSocket()
+	if err != nil {
+		panic(err)
+	}
+
+	defer client.Close()
+
+	switch t {
+	case metricTypeCount:
+		if i, ok := val.(int64); ok {
+			client.IncrWithSampling(stat, i, sampleRate)
+		}
+	case metricTypeGauge:
+		if i, ok := val.(int64); ok {
+			client.GaugeWithSampling(stat, i, sampleRate)
+		}
+	case metricTypeFGauge:
+		if i, ok := val.(float64); ok {
+			client.FGaugeWithSampling(stat, i, sampleRate)
+		}
+	case metricTypeTimer:
+		if i, ok := val.(int64); ok {
+			client.TimingWithSampling(stat, i, sampleRate)
+		}
+	default:
+		// temporary do nothing
+	}
+}
