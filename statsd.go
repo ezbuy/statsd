@@ -8,12 +8,16 @@ import (
 
 // Config is the struct to run statsd
 type Config struct {
-	Host       string  `json:"host"`
-	Port       int     `json:"port"`
-	Project    string  `json:"project"`
-	Enable     bool    `json:"enable"` // flag used to indicate whether stats is enabled
-	SampleRate float32 `json:"sample_rate"`
+	Host       string
+	Port       int
+	Project    string
+	Enable     bool    // flag used to indicate whether stats is enabled
+	SampleRate float32 // global statsd sample rate
 }
+
+const (
+	defaultSampleRate = 1.0
+)
 
 var config *Config
 var addr string
@@ -21,6 +25,12 @@ var addr string
 // Setup set the config
 func Setup(cfg *Config) {
 	config = cfg
+
+	// if sample rate is equal to 0, it indicates that the statsd never called
+	// so we set a default value
+	if config.SampleRate == 0 {
+		config.SampleRate = defaultSampleRate
+	}
 
 	// do some extra check
 
@@ -49,7 +59,7 @@ func Incr(stat string) {
 
 // IncrByVal increment a particular event with value
 func IncrByVal(stat string, val int64) {
-	IncrWithSampling(stat, val, 1)
+	IncrWithSampling(stat, val, config.SampleRate)
 }
 
 // IncrWithSampling increment a particular event with value and sampling
@@ -67,7 +77,7 @@ func IncrWithSampling(stat string, val int64, sampleRate float32) {
 
 // Gauge set a constant value of a particular event
 func Gauge(stat string, val int64) {
-	GaugeWithSampling(stat, val, 1)
+	GaugeWithSampling(stat, val, config.SampleRate)
 }
 
 // GaugeWithSampling set a constant value of a particular event with sampling
@@ -81,7 +91,7 @@ func GaugeWithSampling(stat string, val int64, sampleRate float32) {
 
 // FGauge set a constant float point value of a particular event
 func FGauge(stat string, val float64) {
-	FGaugeWithSampling(stat, val, 1)
+	FGaugeWithSampling(stat, val, config.SampleRate)
 }
 
 // FGaugeWithSampling set a constant float point value of a particular event with sampling
@@ -99,7 +109,7 @@ func gauge(stat string, val interface{}, t metricType, sampleRate float32) {
 
 // TimingByValue track duration of a event
 func TimingByValue(stat string, d time.Duration) {
-	TimingByValueWithSampling(stat, d, 1)
+	TimingByValueWithSampling(stat, d, config.SampleRate)
 }
 
 // TimingByValueWithSampling track duration of a event with sampling
@@ -116,7 +126,7 @@ func TimingByValueWithSampling(stat string, d time.Duration, sampleRate float32)
 
 // Timing track duration of a event
 func Timing(stat string, t1 time.Time, t2 time.Time) {
-	TimingWithSampling(stat, t1, t2, 1)
+	TimingWithSampling(stat, t1, t2, config.SampleRate)
 }
 
 // TimingWithSampling track duration of a event with sampling
