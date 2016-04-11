@@ -72,7 +72,7 @@ func IncrWithSampling(stat string, val int64, sampleRate float32) {
 		return // ignore
 	}
 
-	go send(stat, val, metricTypeCount, sampleRate)
+	send(stat, val, metricTypeCount, sampleRate)
 }
 
 // Gauge set a constant value of a particular event
@@ -86,7 +86,7 @@ func GaugeWithSampling(stat string, val int64, sampleRate float32) {
 		return
 	}
 
-	go gauge(stat, val, metricTypeGauge, sampleRate)
+	gauge(stat, val, metricTypeGauge, sampleRate)
 }
 
 // FGauge set a constant float point value of a particular event
@@ -100,11 +100,11 @@ func FGaugeWithSampling(stat string, val float64, sampleRate float32) {
 		return
 	}
 
-	go gauge(stat, val, metricTypeFGauge, sampleRate)
+	gauge(stat, val, metricTypeFGauge, sampleRate)
 }
 
 func gauge(stat string, val interface{}, t metricType, sampleRate float32) {
-	go send(stat, val, t, sampleRate)
+	send(stat, val, t, sampleRate)
 }
 
 // TimingByValue track duration of a event
@@ -121,7 +121,7 @@ func TimingByValueWithSampling(stat string, d time.Duration, sampleRate float32)
 	// the delta must be given in milliseconds
 	t := d / time.Millisecond
 
-	go send(stat, int64(t), metricTypeTimer, sampleRate)
+	send(stat, int64(t), metricTypeTimer, sampleRate)
 }
 
 // Timing track duration of a event
