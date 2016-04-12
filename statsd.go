@@ -59,11 +59,20 @@ func Incr(stat string) {
 
 // IncrByVal increment a particular event with value
 func IncrByVal(stat string, val int64) {
+	// check whether is initialized
+	if config == nil {
+		return
+	}
+
 	IncrWithSampling(stat, val, config.SampleRate)
 }
 
 // IncrWithSampling increment a particular event with value and sampling
 func IncrWithSampling(stat string, val int64, sampleRate float32) {
+	if config == nil {
+		return
+	}
+
 	if !config.Enable {
 		return
 	}
@@ -77,11 +86,19 @@ func IncrWithSampling(stat string, val int64, sampleRate float32) {
 
 // Gauge set a constant value of a particular event
 func Gauge(stat string, val int64) {
+	if config == nil {
+		return
+	}
+
 	GaugeWithSampling(stat, val, config.SampleRate)
 }
 
 // GaugeWithSampling set a constant value of a particular event with sampling
 func GaugeWithSampling(stat string, val int64, sampleRate float32) {
+	if config == nil {
+		return
+	}
+
 	if !config.Enable {
 		return
 	}
@@ -91,11 +108,19 @@ func GaugeWithSampling(stat string, val int64, sampleRate float32) {
 
 // FGauge set a constant float point value of a particular event
 func FGauge(stat string, val float64) {
+	if config == nil {
+		return
+	}
+
 	FGaugeWithSampling(stat, val, config.SampleRate)
 }
 
 // FGaugeWithSampling set a constant float point value of a particular event with sampling
 func FGaugeWithSampling(stat string, val float64, sampleRate float32) {
+	if config == nil {
+		return
+	}
+
 	if !config.Enable {
 		return
 	}
@@ -109,11 +134,19 @@ func gauge(stat string, val interface{}, t metricType, sampleRate float32) {
 
 // TimingByValue track duration of a event
 func TimingByValue(stat string, d time.Duration) {
+	if config == nil {
+		return
+	}
+
 	TimingByValueWithSampling(stat, d, config.SampleRate)
 }
 
 // TimingByValueWithSampling track duration of a event with sampling
 func TimingByValueWithSampling(stat string, d time.Duration, sampleRate float32) {
+	if config == nil {
+		return
+	}
+
 	if !config.Enable {
 		return
 	}
@@ -126,6 +159,10 @@ func TimingByValueWithSampling(stat string, d time.Duration, sampleRate float32)
 
 // Timing track duration of a event
 func Timing(stat string, t1 time.Time, t2 time.Time) {
+	if config == nil {
+		return
+	}
+
 	TimingWithSampling(stat, t1, t2, config.SampleRate)
 }
 
