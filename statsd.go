@@ -32,14 +32,6 @@ func Setup(cfg *Config) {
 		config.SampleRate = defaultSampleRate
 	}
 
-	// do some extra check
-
-	if config.Project != "" {
-		if config.Project[len(config.Project)-1:] != "." {
-			config.Project = fmt.Sprintf("%s.", config.Project)
-		}
-	}
-
 	addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
 }
 
@@ -58,7 +50,7 @@ func Incr(stat string) {
 }
 
 // IncrByVal increment a particular event with value
-func IncrByVal(stat string, val int64) {
+func IncrByVal(stat string, val int) {
 	// check whether is initialized
 	if config == nil {
 		return
@@ -68,7 +60,7 @@ func IncrByVal(stat string, val int64) {
 }
 
 // IncrWithSampling increment a particular event with value and sampling
-func IncrWithSampling(stat string, val int64, sampleRate float32) {
+func IncrWithSampling(stat string, val int, sampleRate float32) {
 	if config == nil {
 		return
 	}
@@ -85,7 +77,7 @@ func IncrWithSampling(stat string, val int64, sampleRate float32) {
 }
 
 // Gauge set a constant value of a particular event
-func Gauge(stat string, val int64) {
+func Gauge(stat string, val int) {
 	if config == nil {
 		return
 	}
@@ -94,7 +86,7 @@ func Gauge(stat string, val int64) {
 }
 
 // GaugeWithSampling set a constant value of a particular event with sampling
-func GaugeWithSampling(stat string, val int64, sampleRate float32) {
+func GaugeWithSampling(stat string, val int, sampleRate float32) {
 	if config == nil {
 		return
 	}
@@ -184,12 +176,11 @@ func send(stat string, val interface{}, t metricType, sampleRate float32) {
 	// error handling
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println(err)
+			log.Printf("[statsd] %s", err)
 		}
 	}()
 
-	client := newClient(addr, config.Project)
-	err := client.CreateSocket()
+	client, err := newClient(addr, config.Project)
 	if err != nil {
 		panic(err)
 	}
@@ -198,11 +189,11 @@ func send(stat string, val interface{}, t metricType, sampleRate float32) {
 
 	switch t {
 	case metricTypeCount:
-		if i, ok := val.(int64); ok {
+		if i, ok := val.(int); ok {
 			client.IncrWithSampling(stat, i, sampleRate)
 		}
 	case metricTypeGauge:
-		if i, ok := val.(int64); ok {
+		if i, ok := val.(int); ok {
 			client.GaugeWithSampling(stat, i, sampleRate)
 		}
 	case metricTypeFGauge:

@@ -3,8 +3,10 @@ package statsd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -17,53 +19,47 @@ var (
 
 // Client is a client library to send events to StatsD
 type Client struct {
-	conn           net.Conn
-	addr           string
-	prefix         string
-	eventStringTpl string
+	addr   string
+	prefix string
+	w      io.WriteCloser
 }
 
-func newClient(addr string, prefix string) *Client {
-	return &Client{
-		addr:           addr,
-		prefix:         prefix,
-		eventStringTpl: "%s%s:%s",
+func newClient(addr string, prefix string) (*Client, error) {
+	prefix = strings.TrimRight(prefix, ".")
+
+	c := &Client{
+		addr:   addr,
+		prefix: prefix,
 	}
-}
 
-// String returns the StatsD server address
-func (c *Client) String() string {
-	return c.addr
-}
-
-// CreateSocket creates a UDP connection to a StatsD server
-func (c *Client) CreateSocket() error {
-	conn, err := net.DialTimeout("udp", c.addr, 5*time.Second)
+	w, err := net.DialTimeout("udp", addr, 5*time.Second)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	c.conn = conn
-	return nil
+
+	c.w = w
+
+	return c, nil
 }
 
 // Close the UDP connection
 func (c *Client) Close() error {
-	if nil == c.conn {
+	if c.w == nil {
 		return nil
 	}
-	return c.conn.Close()
+	return c.w.Close()
 }
 
 // See statsd data types here: http://statsd.readthedocs.org/en/latest/types.html
 // or also https://github.com/b/statsd_spec
 
 // Incr - Increment a counter metric. Often used to note a particular event
-func (c *Client) Incr(stat string, count int64) error {
+func (c *Client) Incr(stat string, count int) error {
 	return c.IncrWithSampling(stat, count, 1)
 }
 
 // IncrWithSampling - Increment a counter metric with sampling between 0 and 1
-func (c *Client) IncrWithSampling(stat string, count int64, sampleRate float32) error {
+func (c *Client) IncrWithSampling(stat string, count int, sampleRate float32) error {
 	if err := checkSampleRate(sampleRate); err != nil {
 		return err
 	}
@@ -76,16 +72,16 @@ func (c *Client) IncrWithSampling(stat string, count int64, sampleRate float32) 
 		return err
 	}
 
-	return c.send(stat, "%d|c", count, sampleRate)
+	return c.send(stat, count, "c", sampleRate)
 }
 
 // Decr - Decrement a counter metric. Often used to note a particular event
-func (c *Client) Decr(stat string, count int64) error {
+func (c *Client) Decr(stat string, count int) error {
 	return c.DecrWithSampling(stat, count, 1)
 }
 
 // DecrWithSampling - Decrement a counter metric with sampling between 0 and 1
-func (c *Client) DecrWithSampling(stat string, count int64, sampleRate float32) error {
+func (c *Client) DecrWithSampling(stat string, count int, sampleRate float32) error {
 	if err := checkSampleRate(sampleRate); err != nil {
 		return err
 	}
@@ -98,7 +94,7 @@ func (c *Client) DecrWithSampling(stat string, count int64, sampleRate float32) 
 		return err
 	}
 
-	return c.send(stat, "%d|c", -count, sampleRate)
+	return c.send(stat, -count, "c", sampleRate)
 }
 
 // Timing - Track a duration event
@@ -117,7 +113,7 @@ func (c *Client) TimingWithSampling(stat string, delta int64, sampleRate float32
 		return nil // ignore this call
 	}
 
-	return c.send(stat, "%d|ms", delta, sampleRate)
+	return c.send(stat, delta, "ms", sampleRate)
 }
 
 // Gauge - Gauges are a constant data type. They are not subject to averaging,
@@ -126,12 +122,12 @@ func (c *Client) TimingWithSampling(stat string, delta int64, sampleRate float32
 // delta to be true, that specifies that the gauge should be updated, not set. Due to the
 // underlying protocol, you can't explicitly set a gauge to a negative number without
 // first setting it to zero.
-func (c *Client) Gauge(stat string, value int64) error {
+func (c *Client) Gauge(stat string, value int) error {
 	return c.GaugeWithSampling(stat, value, 1)
 }
 
 // GaugeWithSampling set a constant data type with sampling between 0 and 1
-func (c *Client) GaugeWithSampling(stat string, value int64, sampleRate float32) error {
+func (c *Client) GaugeWithSampling(stat string, value int, sampleRate float32) error {
 	if err := checkSampleRate(sampleRate); err != nil {
 		return err
 	}
@@ -141,10 +137,10 @@ func (c *Client) GaugeWithSampling(stat string, value int64, sampleRate float32)
 	}
 
 	if value < 0 {
-		c.send(stat, "%d|g", 0, 1)
+		c.send(stat, 0, "g", 1)
 	}
 
-	return c.send(stat, "%d|g", value, sampleRate)
+	return c.send(stat, value, "g", sampleRate)
 }
 
 // FGauge -- Send a floating point value for a gauge
@@ -163,29 +159,29 @@ func (c *Client) FGaugeWithSampling(stat string, value float64, sampleRate float
 	}
 
 	if value < 0 {
-		c.send(stat, "%d|g", 0, 1)
+		c.send(stat, 0, "g", 1)
 	}
 
-	return c.send(stat, "%g|g", value, sampleRate)
+	return c.send(stat, value, "g", sampleRate)
 }
 
 // write a UDP packet with the statsd event
-func (c *Client) send(stat string, format string, value interface{}, sampleRate float32) error {
-	if c.conn == nil {
+func (c *Client) send(bucket string, value interface{}, t string, sampleRate float32) error {
+	if c.w == nil {
 		return ErrNotConnected
 	}
 
-	format = fmt.Sprintf(c.eventStringTpl, c.prefix, stat, format)
-
-	if sampleRate != 1 {
-		format = fmt.Sprintf("%s|@%f", format, sampleRate)
+	if c.prefix != "" {
+		bucket = fmt.Sprintf("%s.%s", c.prefix, bucket)
 	}
 
-	_, err := fmt.Fprintf(c.conn, format, value)
+	metric := fmt.Sprintf("%s:%v|%s|@%f", bucket, value, t, sampleRate)
+
+	_, err := c.w.Write([]byte(metric))
 	return err
 }
 
-func checkCount(c int64) error {
+func checkCount(c int) error {
 	if c <= 0 {
 		return ErrInvalidCount
 	}
