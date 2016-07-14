@@ -3,7 +3,6 @@ package statsd
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"strings"
@@ -21,7 +20,7 @@ var (
 type Client struct {
 	addr   string
 	prefix string
-	w      io.WriteCloser
+	conn   net.Conn
 }
 
 func newClient(addr string, prefix string) (*Client, error) {
@@ -32,22 +31,22 @@ func newClient(addr string, prefix string) (*Client, error) {
 		prefix: prefix,
 	}
 
-	w, err := net.DialTimeout("udp", addr, 5*time.Second)
+	conn, err := net.DialTimeout("udp", addr, 5*time.Second)
 	if err != nil {
 		return nil, err
 	}
 
-	c.w = w
+	c.conn = conn
 
 	return c, nil
 }
 
 // Close the UDP connection
 func (c *Client) Close() error {
-	if c.w == nil {
+	if c.conn == nil {
 		return nil
 	}
-	return c.w.Close()
+	return c.conn.Close()
 }
 
 // See statsd data types here: http://statsd.readthedocs.org/en/latest/types.html
@@ -167,7 +166,7 @@ func (c *Client) FGaugeWithSampling(stat string, value float64, sampleRate float
 
 // write a UDP packet with the statsd event
 func (c *Client) send(bucket string, value interface{}, t string, sampleRate float32) error {
-	if c.w == nil {
+	if c.conn == nil {
 		return ErrNotConnected
 	}
 
@@ -177,7 +176,7 @@ func (c *Client) send(bucket string, value interface{}, t string, sampleRate flo
 
 	metric := fmt.Sprintf("%s:%v|%s|@%f", bucket, value, t, sampleRate)
 
-	_, err := c.w.Write([]byte(metric))
+	_, err := c.conn.Write([]byte(metric))
 	return err
 }
 
