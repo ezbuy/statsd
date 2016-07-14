@@ -19,7 +19,7 @@ func initConfig() {
 func Test_Gauge(t *testing.T) {
 	initConfig()
 
-	v := 0
+	var v int64
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	for {
@@ -27,6 +27,10 @@ func Test_Gauge(t *testing.T) {
 
 		v++
 		Gauge("statsd.gauge", v)
+
+		if v == 10 {
+			break
+		}
 	}
 }
 
@@ -35,9 +39,14 @@ func Test_Incr(t *testing.T) {
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 
+	cnt := 0
 	for {
 		<-ticker.C
 
 		Incr("statsd.incr")
+
+		if cnt == 20 {
+			break
+		}
 	}
 }
