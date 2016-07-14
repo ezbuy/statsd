@@ -50,7 +50,7 @@ func Incr(stat string) {
 }
 
 // IncrByVal increment a particular event with value
-func IncrByVal(stat string, val int) {
+func IncrByVal(stat string, val int64) {
 	// check whether is initialized
 	if config == nil {
 		return
@@ -60,7 +60,7 @@ func IncrByVal(stat string, val int) {
 }
 
 // IncrWithSampling increment a particular event with value and sampling
-func IncrWithSampling(stat string, val int, sampleRate float32) {
+func IncrWithSampling(stat string, val int64, sampleRate float32) {
 	if config == nil {
 		return
 	}
@@ -77,7 +77,7 @@ func IncrWithSampling(stat string, val int, sampleRate float32) {
 }
 
 // Gauge set a constant value of a particular event
-func Gauge(stat string, val int) {
+func Gauge(stat string, val int64) {
 	if config == nil {
 		return
 	}
@@ -85,8 +85,26 @@ func Gauge(stat string, val int) {
 	GaugeWithSampling(stat, val, config.SampleRate)
 }
 
+// Gauge2Times call Gauge 2 times
+func Gauge2Times(stat string, val int64) {
+	Gauge(stat, val)
+	Gauge(stat, val)
+}
+
+// GaugeMultiTimes call Gauge multiple times
+func GaugeMultiTimes(stat string, val int64, t int) {
+	if t <= 0 {
+		return
+	}
+
+	for t > 0 {
+		Gauge(stat, val)
+		t--
+	}
+}
+
 // GaugeWithSampling set a constant value of a particular event with sampling
-func GaugeWithSampling(stat string, val int, sampleRate float32) {
+func GaugeWithSampling(stat string, val int64, sampleRate float32) {
 	if config == nil {
 		return
 	}
@@ -189,11 +207,11 @@ func send(stat string, val interface{}, t metricType, sampleRate float32) {
 
 	switch t {
 	case metricTypeCount:
-		if i, ok := val.(int); ok {
+		if i, ok := val.(int64); ok {
 			client.IncrWithSampling(stat, i, sampleRate)
 		}
 	case metricTypeGauge:
-		if i, ok := val.(int); ok {
+		if i, ok := val.(int64); ok {
 			client.GaugeWithSampling(stat, i, sampleRate)
 		}
 	case metricTypeFGauge:

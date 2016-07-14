@@ -54,12 +54,12 @@ func (c *Client) Close() error {
 // or also https://github.com/b/statsd_spec
 
 // Incr - Increment a counter metric. Often used to note a particular event
-func (c *Client) Incr(stat string, count int) error {
+func (c *Client) Incr(stat string, count int64) error {
 	return c.IncrWithSampling(stat, count, 1)
 }
 
 // IncrWithSampling - Increment a counter metric with sampling between 0 and 1
-func (c *Client) IncrWithSampling(stat string, count int, sampleRate float32) error {
+func (c *Client) IncrWithSampling(stat string, count int64, sampleRate float32) error {
 	if err := checkSampleRate(sampleRate); err != nil {
 		return err
 	}
@@ -76,12 +76,12 @@ func (c *Client) IncrWithSampling(stat string, count int, sampleRate float32) er
 }
 
 // Decr - Decrement a counter metric. Often used to note a particular event
-func (c *Client) Decr(stat string, count int) error {
+func (c *Client) Decr(stat string, count int64) error {
 	return c.DecrWithSampling(stat, count, 1)
 }
 
 // DecrWithSampling - Decrement a counter metric with sampling between 0 and 1
-func (c *Client) DecrWithSampling(stat string, count int, sampleRate float32) error {
+func (c *Client) DecrWithSampling(stat string, count int64, sampleRate float32) error {
 	if err := checkSampleRate(sampleRate); err != nil {
 		return err
 	}
@@ -122,12 +122,12 @@ func (c *Client) TimingWithSampling(stat string, delta int64, sampleRate float32
 // delta to be true, that specifies that the gauge should be updated, not set. Due to the
 // underlying protocol, you can't explicitly set a gauge to a negative number without
 // first setting it to zero.
-func (c *Client) Gauge(stat string, value int) error {
+func (c *Client) Gauge(stat string, value int64) error {
 	return c.GaugeWithSampling(stat, value, 1)
 }
 
 // GaugeWithSampling set a constant data type with sampling between 0 and 1
-func (c *Client) GaugeWithSampling(stat string, value int, sampleRate float32) error {
+func (c *Client) GaugeWithSampling(stat string, value int64, sampleRate float32) error {
 	if err := checkSampleRate(sampleRate); err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (c *Client) send(bucket string, value interface{}, t string, sampleRate flo
 	return err
 }
 
-func checkCount(c int) error {
+func checkCount(c int64) error {
 	if c <= 0 {
 		return ErrInvalidCount
 	}
