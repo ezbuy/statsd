@@ -32,14 +32,6 @@ func Setup(cfg *Config) {
 		config.SampleRate = defaultSampleRate
 	}
 
-	// do some extra check
-
-	if config.Project != "" {
-		if config.Project[len(config.Project)-1:] != "." {
-			config.Project = fmt.Sprintf("%s.", config.Project)
-		}
-	}
-
 	addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
 }
 
@@ -91,6 +83,24 @@ func Gauge(stat string, val int64) {
 	}
 
 	GaugeWithSampling(stat, val, config.SampleRate)
+}
+
+// Gauge2Times call Gauge 2 times
+func Gauge2Times(stat string, val int64) {
+	Gauge(stat, val)
+	Gauge(stat, val)
+}
+
+// GaugeMultiTimes call Gauge multiple times
+func GaugeMultiTimes(stat string, val int64, t int) {
+	if t <= 0 {
+		return
+	}
+
+	for t > 0 {
+		Gauge(stat, val)
+		t--
+	}
 }
 
 // GaugeWithSampling set a constant value of a particular event with sampling
@@ -184,12 +194,11 @@ func send(stat string, val interface{}, t metricType, sampleRate float32) {
 	// error handling
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println(err)
+			log.Printf("[statsd] %s", err)
 		}
 	}()
 
-	client := newClient(addr, config.Project)
-	err := client.CreateSocket()
+	client, err := newClient(addr, config.Project)
 	if err != nil {
 		panic(err)
 	}
