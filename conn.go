@@ -201,7 +201,7 @@ func shouldFire(sampleRate float32) bool {
 		return true
 	}
 
-	r := rand.New(rand.NewSource(time.Now().Unix()))
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	return r.Float32() <= sampleRate
 }
