@@ -196,12 +196,17 @@ func checkSampleRate(r float32) error {
 	return nil
 }
 
+var fireRand *rand.Rand
+
+func init() {
+	// use rand.Seed to reset fireRand regularly?
+	fireRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+}
+
 func shouldFire(sampleRate float32) bool {
 	if sampleRate == 1 {
 		return true
 	}
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	return r.Float32() <= sampleRate
+	return fireRand.Float32() <= sampleRate
 }
