@@ -48,13 +48,23 @@ const (
 
 // Incr increment a particular event
 func Incr(stat string) {
+	if config == nil {
+		return
+	}
+
+	if !config.Enable {
+		return
+	}
 	getClient().Incr(stat, 1)
 }
 
 // IncrByVal increment a particular event with value
 func IncrByVal(stat string, val int64) {
-	// check whether is initialized
 	if config == nil {
+		return
+	}
+
+	if !config.Enable {
 		return
 	}
 	getClient().IncrWithSampling(stat, val, config.SampleRate)
