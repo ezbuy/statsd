@@ -2,7 +2,7 @@ package statsd
 
 import (
 	"fmt"
-	"log"
+	"sync"
 	"time"
 )
 
@@ -19,8 +19,10 @@ const (
 	defaultSampleRate = 1.0
 )
 
-var config *Config
-var addr string
+var (
+	config *Config
+	addr   string
+)
 
 // Setup set the config
 func Setup(cfg *Config) {
@@ -46,7 +48,7 @@ const (
 
 // Incr increment a particular event
 func Incr(stat string) {
-	IncrByVal(stat, 1)
+	getClient().Incr(stat, 1)
 }
 
 // IncrByVal increment a particular event with value
@@ -55,8 +57,7 @@ func IncrByVal(stat string, val int64) {
 	if config == nil {
 		return
 	}
-
-	IncrWithSampling(stat, val, config.SampleRate)
+	getClient().IncrWithSampling(stat, val, config.SampleRate)
 }
 
 // IncrWithSampling increment a particular event with value and sampling
@@ -68,12 +69,10 @@ func IncrWithSampling(stat string, val int64, sampleRate float32) {
 	if !config.Enable {
 		return
 	}
-
 	if val == 0 {
 		return // ignore
 	}
-
-	send(stat, val, metricTypeCount, sampleRate)
+	getClient().IncrWithSampling(stat, val, sampleRate)
 }
 
 // Gauge set a constant value of a particular event
@@ -186,24 +185,60 @@ func Now() time.Time {
 	return time.Now()
 }
 
+var (
+	once          sync.Once
+	defaultClient *Client
+)
+
+func getClient() *Client {
+	once.Do(func() {
+		client, err := newClient(addr, config.Project)
+		if err != nil {
+			panic(err)
+		}
+		defaultClient = client
+	})
+	return defaultClient
+}
+
+type sendItem struct {
+	stat       string
+	val        interface{}
+	t          metricType
+	sampleRate float32
+}
+
+var (
+	sendLoopOnce sync.Once
+	sendCh       chan *sendItem
+)
+
+func sendAsync(stat string, val interface{}, t metricType, sampleRate float32) {
+	sendLoopOnce.Do(func() {
+		if sendCh == nil {
+			sendCh = make(chan *sendItem, 1024)
+		}
+		cli := getClient()
+		go func() {
+			for item := range sendCh {
+				sendEx(cli, item.stat, item.val, item.t, item.sampleRate)
+			}
+		}()
+	})
+	select {
+	case sendCh <- &sendItem{stat, val, t, sampleRate}:
+	default:
+	}
+}
+
 func send(stat string, val interface{}, t metricType, sampleRate float32) {
+	sendAsync(stat, val, t, sampleRate)
+}
+
+func sendEx(client *Client, stat string, val interface{}, t metricType, sampleRate float32) {
 	if stat == "" {
 		return
 	}
-
-	// error handling
-	defer func() {
-		if err := recover(); err != nil {
-			log.Printf("[statsd] %s", err)
-		}
-	}()
-
-	client, err := newClient(addr, config.Project)
-	if err != nil {
-		panic(err)
-	}
-
-	defer client.Close()
 
 	switch t {
 	case metricTypeCount:

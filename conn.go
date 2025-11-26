@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,15 @@ type Client struct {
 	addr   string
 	prefix string
 	conn   net.Conn
+
+	buffer      []countBuffer
+	m           sync.Mutex
+	flushticker *time.Ticker
+}
+
+type countBuffer struct {
+	name  string
+	count int64
 }
 
 func newClient(addr string, prefix string) (*Client, error) {
@@ -37,12 +47,44 @@ func newClient(addr string, prefix string) (*Client, error) {
 	}
 
 	c.conn = conn
+	c.flushticker = time.NewTicker(5 * time.Second)
+	go c.bufferSendLoop()
 
 	return c, nil
 }
 
+func (c *Client) bufferSendLoop() {
+	for range c.flushticker.C {
+		c.m.Lock()
+		if len(c.buffer) == 0 {
+			c.m.Unlock()
+			continue
+		}
+		buffer := c.buffer
+		c.buffer = nil
+		c.m.Unlock()
+		for idx := range buffer {
+			c.send(buffer[idx].name, buffer[idx].count, "c", 1)
+		}
+	}
+}
+
+func (c *Client) addToBuffer(stat string, count int64) {
+	c.m.Lock()
+	for i := range c.buffer {
+		if c.buffer[i].name == stat {
+			c.buffer[i].count++
+			c.m.Unlock()
+			return
+		}
+	}
+	c.buffer = append(c.buffer, countBuffer{stat, count})
+	c.m.Unlock()
+}
+
 // Close the UDP connection
 func (c *Client) Close() error {
+	c.flushticker.Stop()
 	if c.conn == nil {
 		return nil
 	}
@@ -71,7 +113,9 @@ func (c *Client) IncrWithSampling(stat string, count int64, sampleRate float32) 
 		return err
 	}
 
-	return c.send(stat, count, "c", sampleRate)
+	c.addToBuffer(stat, count)
+	// return c.send(stat, count, "c", sampleRate)
+	return nil
 }
 
 // Decr - Decrement a counter metric. Often used to note a particular event
@@ -208,5 +252,8 @@ func shouldFire(sampleRate float32) bool {
 		return true
 	}
 
+	// r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// return r.Float32() <= sampleRate
 	return fireRand.Float32() <= sampleRate
 }
